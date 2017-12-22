@@ -1,0 +1,22 @@
+-- Table
+CREATE EXTERNAL TABLE IF NOT EXISTS `weblog1` (
+  `remote_addr` string,
+  `remote_user` string,
+  `time_local` string,
+  `http_verb` string,
+  `url` string,
+  `http_ver` string,
+  `status` int,
+  `body_bytes_sent` int,
+  `http_referer` string,
+  `http_user_agent` string
+)
+ 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH serdeproperties(
+  "input.regex" = "([0-9\\.]+) - ([^ ]*) \\[([^\\]]*)\\] \"([^ ]*) ([^ ]*) ([^ ]*)\" ([0-9]*) ([0-9]*) \"(.*)\" \"(.*)\",
+  "output.format.string" = "%1$s %2$s %3$s %4$s %5$s %6$s %7$s %8$s %9$s %10$s"
+)
+ 
+STORED AS TEXTFILE
+LOCATION 'hdfs://X/user/hive/Test1/weblog1';

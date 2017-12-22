@@ -1,0 +1,55 @@
+CREATE EXTERNAL TABLE test(
+  host STRING,
+  identity STRING,
+  user STRING,
+  time STRING,
+  request STRING,
+  status STRING,
+  size STRING)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.contrib.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+  "input.regex" = "([^ ]*) ([^ ]*) ([^ ]*) (-|\\[[^\\]]*\\]) ([^ \"]*|\"[^\"]*\") (-|[0-9]*) (-|[0-9]*)(?: ([^ \"]*|\"[^\"]*\") ([^ \"]*|\"[^\"]*\"))?",
+  "output.format.string" = "%1$s %2$s %3$s %4$s %5$s %6$s %7$s %8$s %9$s"
+)
+STORED AS TEXTFILE
+LOCATION 'hdfs://X/user/hive/Test1/weblog1';
+
+CREATE EXTERNAL TABLE access_hbase(
+  key STRING,          -- Unix time + ":" + unique identifier.
+  host STRING,         -- The IP address of the host making the request.
+  identity STRING,     -- ??? (raw log data)
+  user STRING,         -- ??? (raw log data)
+  time BIGINT,         -- Unix time, UTC.
+  method STRING,       -- "GET", etc.
+  path STRING,         -- "/logo.png", etc.
+  protocol STRING,     -- "HTTP/1.1", etc.
+  status SMALLINT,     -- 200, 404, etc.
+  size BIGINT,         -- Response size, in bytes.)
+
+STORED BY 'org.apache.hadoop.hive.hbase.HBaseStorageHandler'
+WITH SERDEPROPERTIES (
+  "hbase.columns.mapping" = ":key,m:host,m:identity,m:user,m:time,m:method,m:path,m:protocol,m:status,m:size"
+)
+TBLPROPERTIES ("hbase.table.name" = "test1_1");
+INSERT OVERWRITE TABLE access_hbase
+  SELECT concat(cast(unix_timestamp(time, "[dd/MMM/yyyy:HH:mm:ss Z]") AS STRING), ":", guid()) AS key,
+         host,
+         unquote_apache(identity),
+         unquote_apache(user),
+         unix_timestamp(time, "[dd/MMM/yyyy:HH:mm:ss Z]"),
+         re_extract(unquote_apache(request), "([^ ]*) ([^ ]*) ([^\"]*)", 1) AS method,
+         re_extract(unquote_apache(request), "([^ ]*) ([^ ]*) ([^\"]*)", 2) AS path,
+         re_extract(unquote_apache(request), "([^ ]*) ([^ ]*) ([^\"]*)", 3) AS protocol,
+         cast(status AS SMALLINT) AS status,
+         cast(size AS BIGINT) AS size,
+    WHERE unix_timestamp(time, "[dd/MMM/yyyy:HH:mm:ss Z]") IS NOT NULL;
+
+SELECT path, count(*) AS cnt
+  FROM test1_1 GROUP BY path
+  ORDER BY cnt DESC LIMIT 50;
+
+SELECT pubyear, count(*)
+  FROM (SELECT re_extract(path, "/([0-9]+)/.*", 1) AS pubyear
+          FROM atest1_) access
+  WHERE pubyear IS NOT NULL
+  GROUP BY pubyear;
